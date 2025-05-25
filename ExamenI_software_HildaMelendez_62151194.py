@@ -153,7 +153,7 @@ class Database:
             ID: {self.id}
             Cliente: {self.cliente.nombre}
             Servicio: {self.servicio.nombre}
-            Fecha: {self.fecha_hora.strftime('%Y-%m-%d %H:%M')}
+            Fecha: {self.fecha_hora.strftime('%Y-%m-%d %I:%M %p')}
             Duración: {self.servicio.duracion} minutos
             Precio: ${self.servicio.precio:.2f}
             Estado: {self.estado}
@@ -181,7 +181,13 @@ class Database:
                         cliente = next((c for c in self.clientes if c.id == row[1]), None)
                         servicio = next((s for s in self.servicios if s.id == row[2]), None)
                         if cliente and servicio:
-                            cita = cita_factory.create_entity(row[0], cliente, servicio, row[3])
+                            # Convertir string de fecha a datetime (ahora acepta AM/PM)
+                            fecha_str = row[3]
+                            if isinstance(fecha_str, str):
+                                fecha_hora = datetime.strptime(fecha_str, '%Y-%m-%d %I:%M %p')
+                            else:
+                                fecha_hora = row[3]
+                            cita = cita_factory.create_entity(row[0], cliente, servicio, fecha_hora)
                             cita.estado = row[4]
                             self.citas.append(cita)
                             if row[0] >= self.next_cita_id:
@@ -200,15 +206,15 @@ class Database:
             for cliente in self.clientes:
                 ws_clientes.append([cliente.id, cliente.nombre, cliente.email, cliente.telefono])
             
-            # Guardar citas
+            # Guardar citas (ahora con formato AM/PM)
             ws_citas = wb.create_sheet("Citas")
-            ws_citas.append(["ID", "ID Cliente", "ID Servicio", "Fecha", "Estado"])
+            ws_citas.append(["ID", "ID Cliente", "Servicio", "Fecha", "Estado"])
             for cita in self.citas:
                 ws_citas.append([
                     cita.id,
                     cita.cliente.id,
-                    cita.servicio.id,
-                    cita.fecha_hora,
+                    cita.servicio.nombre,
+                    cita.fecha_hora.strftime('%Y-%m-%d %I:%M %p'),  # Guarda en AM/PM
                     cita.estado
                 ])
             
@@ -346,7 +352,7 @@ class SalonBellezaApp:
         self.servicio_combobox = ttk.Combobox(form_frame, textvariable=self.servicio_var, values=servicios, state="readonly")
         self.servicio_combobox.grid(row=5, column=1, sticky="ew", pady=5)
         
-        # Fecha y hora
+        # Fecha y hora (ahora con AM/PM)
         ttk.Label(form_frame, text="Fecha y Hora", font=("Arial", 12, "bold")).grid(row=6, column=0, columnspan=2, pady=5, sticky="w")
         
         ttk.Label(form_frame, text="Fecha (AAAA-MM-DD):").grid(row=7, column=0, sticky="e", padx=5, pady=5)
@@ -354,10 +360,10 @@ class SalonBellezaApp:
         self.fecha_entry.grid(row=7, column=1, sticky="ew", pady=5)
         self.fecha_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
         
-        ttk.Label(form_frame, text="Hora (HH:MM):").grid(row=8, column=0, sticky="e", padx=5, pady=5)
+        ttk.Label(form_frame, text="Hora (HH:MM AM/PM):").grid(row=8, column=0, sticky="e", padx=5, pady=5)
         self.hora_entry = ttk.Entry(form_frame)
         self.hora_entry.grid(row=8, column=1, sticky="ew", pady=5)
-        self.hora_entry.insert(0, "10:00")
+        self.hora_entry.insert(0, "02:00 PM")  # Ejemplo por defecto en AM/PM
         
         # Botones
         button_frame = ttk.Frame(form_frame)
@@ -381,9 +387,10 @@ class SalonBellezaApp:
         
         try:
             servicio_id = int(servicio_str.split(".")[0])
-            fecha_hora = datetime.strptime(f"{fecha_str} {hora_str}", "%Y-%m-%d %H:%M")
+            # Convertir a datetime con AM/PM
+            fecha_hora = datetime.strptime(f"{fecha_str} {hora_str}", "%Y-%m-%d %I:%M %p")
         except ValueError:
-            messagebox.showerror("Error", "Formato de fecha/hora o servicio inválido")
+            messagebox.showerror("Error", "Formato de fecha/hora o servicio inválido. Use formato: 'HH:MM AM/PM'")
             return
         
         # Registrar cliente
@@ -459,7 +466,7 @@ class SalonBellezaApp:
             
             ttk.Label(cita_frame, text=f"Cita #{i}", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
             ttk.Label(cita_frame, text=f"Servicio: {cita.servicio.nombre}").grid(row=1, column=0, sticky="w")
-            ttk.Label(cita_frame, text=f"Fecha: {cita.fecha_hora.strftime('%Y-%m-%d %H:%M')}").grid(row=2, column=0, sticky="w")
+            ttk.Label(cita_frame, text=f"Fecha: {cita.fecha_hora.strftime('%Y-%m-%d %I:%M %p')}").grid(row=2, column=0, sticky="w")
             ttk.Label(cita_frame, text=f"Estado: {cita.estado}").grid(row=3, column=0, sticky="w")
             
             if cita.estado == "Confirmada":
@@ -563,7 +570,7 @@ class SalonBellezaApp:
             
             ttk.Label(cita_frame, text=f"Cliente: {cita.cliente.nombre}").grid(row=0, column=0, sticky="w")
             ttk.Label(cita_frame, text=f"Servicio: {cita.servicio.nombre}").grid(row=1, column=0, sticky="w")
-            ttk.Label(cita_frame, text=f"Hora: {cita.fecha_hora.strftime('%H:%M')}").grid(row=2, column=0, sticky="w")
+            ttk.Label(cita_frame, text=f"Hora: {cita.fecha_hora.strftime('%I:%M %p')}").grid(row=2, column=0, sticky="w")
             ttk.Label(cita_frame, text=f"Duración: {cita.servicio.duracion} min").grid(row=3, column=0, sticky="w")
     
     def clear_screen(self):
